@@ -4,6 +4,7 @@ version = "0.0.1"
 edition = "2021"
 readme = "README.md"
 resolver = "2"
+description = "Yubi goblin application"
 
 [dependencies]
 anyhow = "1.0.94"
@@ -18,7 +19,7 @@ mime = "0.3.17"
 nix = { version = "0.29.0", features = ["user"] }
 image = "0.25.5"
 ctrlc = "3.4.5"
-
+xdg = "2.5.2"
 
 [profile.release]
 # Link time optimisations https://doc.rust-lang.org/cargo/reference/profiles.html#lto
