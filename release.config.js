@@ -1,5 +1,5 @@
 const branches = [
-    'master',
+    'main',
     {
         name: 'alpha',
         prerelease: true
