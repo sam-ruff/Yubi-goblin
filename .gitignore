@@ -1,0 +1,6 @@
+/target
+.idea/*
+static_files.rs
+node_modules
+.parcel-cache
+dist

@@ -1,0 +1,154 @@
+name: "Release"
+on:
+  - push
+  - pull_request
+  - workflow_dispatch
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+
+      - name: Release
+        run: |
+          pnpm --package=@semantic-release/commit-analyzer \
+          --package=@semantic-release/git \
+          --package=@semantic-release/exec \
+          --package=semantic-release@19 \
+          dlx semantic-release
+
+      - name: Create GitHub Release
+        if: ((github.ref == 'refs/heads/master')) && (!contains(github.event.head_commit.message, 'chore:'))
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.RELEASE_VERSION }}
+          release_name: Release ${{ env.RELEASE_VERSION }}
+          body: Automated release for ${{ env.RELEASE_VERSION }}
+
+      - name: Create Version File
+        run: echo "${{ env.RELEASE_VERSION }}" > VERSION
+
+      - name: Upload Version File
+        uses: actions/upload-artifact@v4
+        with:
+          name: version
+          path: VERSION
+
+  build:
+    needs: release
+    runs-on: ${{ matrix.os }}
+    if: ((github.ref == 'refs/heads/master')) && (!contains(github.event.head_commit.message, 'chore:'))
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+#          - os: macos-latest
+#            target: x86_64-apple-darwin
+#          - os: windows-latest
+#            target: x86_64-pc-windows-msvc
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download Version File
+        uses: actions/download-artifact@v4
+        with:
+          name: version
+
+      - name: Read Version File
+        shell: bash
+        run: echo "RELEASE_VERSION=$(cat VERSION)" >> $GITHUB_ENV
+
+      - name: Extract Package Name
+        shell: bash
+        run: |
+          PACKAGE_NAME=$(sed -n 's/^name = "\(.*\)"/\1/p' Cargo.toml)
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
+
+      - name: Overwrite version in Cargo.toml
+        shell: bash
+        run: |
+          sed -i.bak -e "s/^version = \"0\\.0\\.0\"/version = \"${{ env.RELEASE_VERSION }}\"/" Cargo.toml && rm -f Cargo.toml.bak
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Set up Rust with musl target
+        uses: actions-rs/toolchain@v1
+        if: endsWith(matrix.target, 'linux-musl')
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          override: true
+
+      - name: Setup zig for cross-compile (for musl targets)
+        if: endsWith(matrix.target, 'linux-musl')
+        shell: bash
+        run: sudo apt-get -y install musl && sudo snap install zig --beta --classic
+
+      - name: Set target for mac
+        shell: bash
+        if: endsWith(matrix.target, 'apple-darwin')
+        run: |
+          rustup target add x86_64-apple-darwin
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-musl" ]]; then
+            cargo install cargo-zigbuild
+            cargo zigbuild --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Set file extension for Windows
+        shell: bash
+        run: |
+          if [[ ${{ matrix.os }} == "windows-latest" ]]; then
+            echo "EXTENSION=.exe" >> $GITHUB_ENV
+          else
+            echo "EXTENSION=" >> $GITHUB_ENV
+          fi
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          mv target/${{ matrix.target }}/release/${{ env.PACKAGE_NAME }} target/${{ matrix.target }}/release/${{ env.PACKAGE_NAME }}-${{ env.RELEASE_VERSION }}-${{ matrix.os }}-${{ matrix.target }}${{ env.EXTENSION }}
+
+      - name: Upload latest to latest release
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "target/${{ matrix.target }}/release/${{ env.PACKAGE_NAME }}-${{ env.RELEASE_VERSION }}-${{ matrix.os }}-${{ matrix.target }}${{ env.EXTENSION }}"
+          update_latest_release: true
