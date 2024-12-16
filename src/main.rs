@@ -7,8 +7,6 @@ use crate::utils::image::load_icon;
 use actix_web::{web, App, HttpServer};
 use anyhow::Result;
 use log::info;
-use nix::unistd::Uid;
-use std::process::{Command, Stdio};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop};
 use tao::window::WindowBuilder;
@@ -16,10 +14,15 @@ use tokio::runtime::Runtime;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
 use wry::WebViewBuilder;
+use crate::utils::desktop::create_desktop;
+use crate::utils::root::get_root_privs;
 
 fn main() -> Result<()> {
     get_root_privs();
-    println!("All good.");
+    println!("Starting up.");
+    
+    // Attempt to create a .desktop entry
+    create_desktop();
 
     let web_server_port = 55584;
 
@@ -110,7 +113,7 @@ fn main() -> Result<()> {
     });
     // Wrap shutdown_tx in an Option before entering the event loop
     let mut shutdown_tx = Some(shutdown_tx);
-    
+
     // Run the event loop for the webview
     // When `Event::UserEvent(())` is triggered (e.g., by Ctrl+C or SIGTERM),
     // we send a shutdown signal through the one-shot channel.
@@ -141,46 +144,4 @@ fn main() -> Result<()> {
             _ => (),
         }
     });
-    // Ok(())
-}
-
-fn get_root_privs() {
-    if Uid::current().is_root() {
-        println!("We are root.");
-        return;
-    }
-    let current_exe = std::env::current_exe().expect("Unable to get current executable path");
-    let display = std::env::var("DISPLAY").unwrap_or_default();
-    let xauthority = std::env::var("XAUTHORITY").unwrap_or_default();
-
-    let args_str = std::env::args().skip(1).collect::<Vec<_>>().join(" ");
-    let command_line = format!(
-        "DISPLAY={} XAUTHORITY={} {} {}",
-        display,
-        xauthority,
-        current_exe.display(),
-        args_str
-    );
-
-    let mut child = Command::new("pkexec")
-        .arg("bash")
-        .arg("-c")
-        .arg(&command_line)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("Failed to start pkexec.");
-
-    let status = child.wait().expect("Failed to wait on pkexec child process");
-
-    if status.success() {
-        std::process::exit(0);
-    } else {
-        eprintln!(
-            "Failed to acquire root privileges via pkexec. Status: {:?}",
-            status
-        );
-        std::process::exit(1);
-    }
 }
