@@ -1,10 +1,11 @@
 mod rest;
 mod utils;
 mod models;
+mod install;
 
 use std::env;
 use crate::rest::ui::{handle_ui_files, index};
-use crate::rest::yubikey::{are_dependencies_installed, submit_key, DEPENDENCY_URL};
+use crate::rest::yubikey::{are_dependencies_installed, get_yubikeys};
 use crate::utils::image::load_icon;
 use actix_web::{web, App, HttpServer};
 use anyhow::Result;
@@ -18,6 +19,7 @@ use tokio::sync::oneshot;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use wry::WebViewBuilder;
+use crate::rest::consts::{DEPENDENCY_URL, YUBI_KEY_URL};
 use crate::rest::doc::ApiDoc;
 use crate::utils::desktop::create_desktop;
 use crate::utils::root::get_root_privs;
@@ -77,7 +79,7 @@ fn main() -> Result<()> {
             let server = HttpServer::new(move || {
                 App::new()
                     .route("/", web::get().to(index))
-                    .route("/api/v1/yubikey", web::get().to(submit_key))
+                    .route(YUBI_KEY_URL, web::get().to(get_yubikeys))
                     .route(DEPENDENCY_URL, web::get().to(are_dependencies_installed))
                     .service(
                         SwaggerUi::new("/swagger-ui/{_:.*}")

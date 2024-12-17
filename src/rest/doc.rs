@@ -4,6 +4,7 @@ use utoipa::OpenApi;
 #[openapi(
     paths(
         crate::rest::yubikey::are_dependencies_installed,
+        crate::rest::yubikey::get_yubikeys,
     ),
     info(
         title="YubiGoblin",
@@ -13,6 +14,7 @@ use utoipa::OpenApi;
     components(
         schemas(
             crate::models::models::Dependencies,
+            crate::models::models::YubiKey,
         ),
     )
 )]
