@@ -1,8 +1,10 @@
 mod rest;
 mod utils;
+mod models;
 
+use std::env;
 use crate::rest::ui::{handle_ui_files, index};
-use crate::rest::yubikey::submit_key;
+use crate::rest::yubikey::{are_dependencies_installed, submit_key, DEPENDENCY_URL};
 use crate::utils::image::load_icon;
 use actix_web::{web, App, HttpServer};
 use anyhow::Result;
@@ -13,7 +15,10 @@ use tao::window::WindowBuilder;
 use tokio::runtime::Runtime;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 use wry::WebViewBuilder;
+use crate::rest::doc::ApiDoc;
 use crate::utils::desktop::create_desktop;
 use crate::utils::root::get_root_privs;
 
@@ -25,6 +30,10 @@ fn main() -> Result<()> {
     create_desktop();
 
     let web_server_port = 55584;
+    let logging_level = "INFO";
+    // Setup logging
+    env::set_var("RUST_LOG", logging_level.to_string());
+    env_logger::init();
 
     // Create a one-shot channel for shutdown signal
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -69,6 +78,12 @@ fn main() -> Result<()> {
                 App::new()
                     .route("/", web::get().to(index))
                     .route("/api/v1/yubikey", web::get().to(submit_key))
+                    .route(DEPENDENCY_URL, web::get().to(are_dependencies_installed))
+                    .service(
+                        SwaggerUi::new("/swagger-ui/{_:.*}")
+                            .url("/swagger-ui/swagger.json", ApiDoc::openapi()),
+                    )
+                    // This must go last
                     .route("/{path:.*}", web::get().to(handle_ui_files))
             })
                 .bind(addr)

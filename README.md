@@ -16,3 +16,9 @@ yubi-goblin
 # After the first run a desktop entry will be created
 # Yubi goblin always needs to run as root
 ```
+
+## Swagger
+Swagger docs can be found at: 
+```
+http://localhost:55584/swagger-ui/index.html
+```
