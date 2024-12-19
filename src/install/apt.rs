@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use log::debug;
 use crate::models::models::Dependencies;
 
 /// Checks if the given package is installed using `dpkg -s`.
@@ -7,6 +8,8 @@ fn is_package_installed(package: &str) -> Result<bool> {
     let status = Command::new("dpkg")
         .arg("-s")
         .arg(package)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .with_context(|| format!("Failed to run `dpkg -s {}`", package))?;
 
@@ -17,6 +20,8 @@ fn is_package_installed(package: &str) -> Result<bool> {
 fn is_apt_available() -> Result<bool> {
     let status = Command::new("which")
         .arg("apt")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .context("Failed to run `which apt`")?;
 
@@ -38,10 +43,12 @@ pub fn check_dependencies() -> Result<Dependencies> {
 
 /// Installs the given packages using `apt update` and `apt install`.
 /// Returns Ok(()) on success, or an Err with context on failure.
-fn install_packages(packages: &[&str]) -> Result<()> {
+pub fn install_packages(packages: &[&str]) -> Result<()> {
     // Run `apt update`
     Command::new("apt")
         .arg("update")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .context("Failed to run `apt update`")?
         .success()
@@ -56,9 +63,32 @@ fn install_packages(packages: &[&str]) -> Result<()> {
     }
 
     install_cmd
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .context("Failed to run `apt install`")?
         .success()
         .then_some(())
         .ok_or_else(|| anyhow::anyhow!("`apt install` command failed."))
+}
+
+/// Removes the given packages using `apt remove -y`.
+/// Returns Ok(()) on success, or an Err with context on failure.
+pub fn remove_packages(packages: &[&str]) -> Result<()> {
+    // Prepare `apt remove -y <packages>`
+    let mut remove_cmd = Command::new("apt");
+    remove_cmd.arg("remove").arg("-y");
+    for pkg in packages {
+        debug!("Removing package {}", pkg);
+        remove_cmd.arg(pkg);
+    }
+
+    remove_cmd
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .context("Failed to run `apt remove`")?
+        .success()
+        .then_some(())
+        .ok_or_else(|| anyhow::anyhow!("`apt remove` command failed."))
 }

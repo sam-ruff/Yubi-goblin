@@ -21,7 +21,9 @@ ctrlc = "3.4.5"
 utoipa-swagger-ui = { version = "8.0.3", features = ["actix-web"] }
 utoipa = { version= "5.2.0", features = ["actix_extras"] }
 serde = { version = "1.0.216", features = ["derive"] }
+# Do not remove this
 serde_json = "1.0.133"
+rusb = { version = "0.9.4", features = ["vendored"]}
 
 [profile.release]
 # Link time optimisations https://doc.rust-lang.org/cargo/reference/profiles.html#lto

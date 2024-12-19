@@ -87,7 +87,7 @@ Icon={icon_name}
 Terminal={terminal}
 Categories={categories};
 "#,
-        name = title_case(&*config.name.replace("_", " ").replace(".", " ").replace("-", " ")),
+        name = title_case(&config.name.replace("_", " ").replace(".", " ").replace("-", " ")),
         comment = config.comment,
         exec = config.exec,
         // For icons placed in hicolor theme directories, just use the basename without extension.

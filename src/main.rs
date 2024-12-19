@@ -2,10 +2,11 @@ mod rest;
 mod utils;
 mod models;
 mod install;
+mod system;
 
 use std::env;
 use crate::rest::ui::{handle_ui_files, index};
-use crate::rest::yubikey::{are_dependencies_installed, get_yubikeys};
+use crate::rest::yubikey::{delete_yubikey_for_user, get_check_yubikey_for_user, get_yubikeys, post_install_yubikey_for_user};
 use crate::utils::image::load_icon;
 use actix_web::{web, App, HttpServer};
 use anyhow::Result;
@@ -19,8 +20,11 @@ use tokio::sync::oneshot;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use wry::WebViewBuilder;
-use crate::rest::consts::{DEPENDENCY_URL, YUBI_KEY_URL};
+use models::consts::{DEPENDENCY_URL, YUBI_KEY_URL};
+use crate::models::consts::{CHECK_YUBI_KEY_FOR_USER, REMOVE_YUBI_KEY_FOR_USER, USERS_URL};
+use crate::rest::dependencies::{are_dependencies_installed, install_missing_dependencies, remove_unwanted_dependencies};
 use crate::rest::doc::ApiDoc;
+use crate::rest::users::get_users;
 use crate::utils::desktop::create_desktop;
 use crate::utils::root::get_root_privs;
 
@@ -32,9 +36,9 @@ fn main() -> Result<()> {
     create_desktop();
 
     let web_server_port = 55584;
-    let logging_level = "INFO";
+    let logging_level = "DEBUG";
     // Setup logging
-    env::set_var("RUST_LOG", logging_level.to_string());
+    env::set_var("RUST_LOG", logging_level);
     env_logger::init();
 
     // Create a one-shot channel for shutdown signal
@@ -43,16 +47,18 @@ fn main() -> Result<()> {
     // Create an event loop for Tao (webview)
     let event_loop = EventLoop::new();
     let event_loop_proxy = event_loop.create_proxy();
-    let icon = load_icon(&*include_bytes!("../icon.png").to_vec())?;
+    let icon = load_icon(include_bytes!("../icon.png").as_ref())?;
 
     let window = WindowBuilder::new()
         .with_title("Yubi Goblin")
+        // TODO REMOVE ME
+        .with_visible(false)
         .with_maximized(true)
         .with_window_icon(Some(icon))
         .build(&event_loop)?;
 
     // Build the WebView
-    let builder = WebViewBuilder::new().with_url(&format!("http://localhost:{}/", web_server_port));
+    let builder = WebViewBuilder::new().with_url(format!("http://localhost:{}/", web_server_port));
     let _webview = {
         use tao::platform::unix::WindowExtUnix;
         use wry::WebViewBuilderExtUnix;
@@ -79,8 +85,14 @@ fn main() -> Result<()> {
             let server = HttpServer::new(move || {
                 App::new()
                     .route("/", web::get().to(index))
+                    .route(USERS_URL, web::get().to(get_users))
                     .route(YUBI_KEY_URL, web::get().to(get_yubikeys))
+                    .route(YUBI_KEY_URL, web::post().to(post_install_yubikey_for_user))
+                    .route(REMOVE_YUBI_KEY_FOR_USER, web::delete().to(delete_yubikey_for_user))
+                    .route(CHECK_YUBI_KEY_FOR_USER, web::get().to(get_check_yubikey_for_user))
                     .route(DEPENDENCY_URL, web::get().to(are_dependencies_installed))
+                    .route(DEPENDENCY_URL, web::post().to(install_missing_dependencies))
+                    .route(DEPENDENCY_URL, web::delete().to(remove_unwanted_dependencies))
                     .service(
                         SwaggerUi::new("/swagger-ui/{_:.*}")
                             .url("/swagger-ui/swagger.json", ApiDoc::openapi()),

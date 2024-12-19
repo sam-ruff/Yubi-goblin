@@ -7,7 +7,8 @@ pub struct Dependencies {
     /// Set to true if apt is installed
     pub(crate) apt: bool,
     #[schema(example = true)]
-    /// Set to true if libpam_u2f is installed
+    /// Set to true if libpam-u2f is installed
+    #[serde(rename = "libpam-u2f")]
     pub(crate) libpam_u2f: bool,
     #[schema(example = true)]
     /// Set to true if pamu2fg is installed
@@ -38,4 +39,25 @@ impl Default for ErrorMessage {
             error: true,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
+pub struct YubikeyInstallRequest {
+    /// The username to install the Yubikey for
+    pub(crate) username: String,
+}
+
+
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
+pub struct ActionResponse {
+    /// The username to remove the yubikey for
+    pub username: String,
+    /// Whether the yubikey was successfully removed
+    pub yubikey_removed: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
+pub struct YubikeyStatusResponse {
+    pub username: String,
+    pub yubikey_installed: bool,
 }
